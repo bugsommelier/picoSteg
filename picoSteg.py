@@ -1,185 +1,170 @@
-from tkinter import filedialog
+import tkinter as tk
+from tkinter import filedialog, messagebox, ttk
 from PIL import Image, ImageTk
 import os
-import tkinter as tk
 import cv2
+import threading
 
-# Declare global variables
-global image_path, target_save_path, message_entry, original_image_tk
+class PicoStegApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("picoSteg")
 
+        # Initialize variables
+        self.image_path = ""
+        self.target_save_path = ""
+        self.original_image_tk = None
+        self.decoded_image_tk = None
 
-def load_image():
-    global image_path, target_save_path, original_image_tk
-    # Get the image path
-    image_path = filedialog.askopenfilename()
+        # User Interface Setup
+        self.setup_ui()
 
-    # Initialize the target save path with the image directory
-    target_save_path = os.path.dirname(image_path)
+    def setup_ui(self):
+        self.image_label = tk.Label(self.root)
+        self.image_label.pack()
 
-    if image_path:
-        # Open the image without resizing
+        self.load_image_button = tk.Button(self.root, text="Browse for an image", command=self.load_image)
+        self.load_image_button.pack()
+
+        self.message_label = tk.Label(self.root, text="Message:")
+        self.message_label.pack()
+
+        self.message_entry = tk.Entry(self.root, width=40)
+        self.message_entry.pack()
+
+        self.encode_message_button = tk.Button(self.root, text="Save", command=self.encode_and_save_message)
+        self.encode_message_button.pack()
+
+        self.decode_message_button = tk.Button(self.root, text="Load for decode", command=self.load_decode)
+        self.decode_message_button.pack()
+
+        self.progress = ttk.Progressbar(self.root, orient=tk.HORIZONTAL, length=200, mode='indeterminate')
+        self.progress.pack()
+
+        self.decoded_message_label = tk.Label(self.root, text="", wraplength=300)
+        self.decoded_message_label.pack()
+
+        self.results_label = tk.Label(self.root, text="", wraplength=300)
+        self.results_label.pack()
+
+        self.decoded_image_label = tk.Label(self.root)
+        self.decoded_image_label.pack()
+
+    def load_image(self):
+        self.image_path = filedialog.askopenfilename()
+        if self.image_path:
+            self.process_and_display_image(self.image_path, True)
+
+    def process_and_display_image(self, image_path, is_original):
         image = Image.open(image_path)
-
-        # Resize the image while maintaining the aspect ratio to fit the GUI window
         max_size = (300, 300)
         image.thumbnail(max_size, Image.ANTIALIAS)
 
-        # Convert the image to an ImageTk object
-        original_image_tk = ImageTk.PhotoImage(image)
+        image_tk = ImageTk.PhotoImage(image)
+        if is_original:
+            self.original_image_tk = image_tk
+            self.image_label.configure(image=self.original_image_tk)
+            self.image_label.image = self.original_image_tk
+        else:
+            self.decoded_image_tk = image_tk
+            self.decoded_image_label.configure(image=self.decoded_image_tk)
+            self.decoded_image_label.image = self.decoded_image_tk
 
-        # Display the image on the GUI
-        image_label.configure(image=original_image_tk)
-        image_label.image = original_image_tk
+        self.message_entry.delete(0, tk.END)
+        self.decoded_message_label.configure(text="")
+        self.results_label.configure(text="")
 
-        # Clear the message entry and labels
-        message_label.configure(text="Message to steg:")
-        message_entry.delete(0, tk.END)
-        decoded_message_label.configure(text="")
-        decoded_image_label.configure(image=None)  # Clear the displayed image
-        results_label.configure(text="")
+    def encode_and_save_message(self):
+        threading.Thread(target=self._encode_and_save).start()
 
+    def _encode_and_save(self):
+        self.progress.start()
+        message = self.message_entry.get()
+        if not self.image_path:
+            messagebox.showerror("Error", "No image loaded. Please load an image first.")
+            self.progress.stop()
+            return
 
-def encode_and_save_message():
-    global message_entry
-    # Get the message to hide
-    message = message_entry.get()
+        target_save_path = filedialog.askdirectory()
+        if not target_save_path:
+            messagebox.showerror("Error", "No target directory selected. Please choose a directory.")
+            self.progress.stop()
+            return
 
-    # Check if an image is loaded
-    if not image_path:
-        print("No image loaded. Please load an image first.")
-        return
+        filename = os.path.basename(self.image_path) + "_encoded.png"
+        self.encode_message(self.image_path, message, target_save_path, filename)
 
-    # Open a file dialog to select the target directory
-    target_save_path = filedialog.askdirectory()
+        self.progress.stop()
+        # Update the UI in the main thread
+        self.root.after(0, self.update_encode_results, os.path.join(target_save_path, filename))
 
-    if not target_save_path:
-        print("No target directory selected. Please choose a directory.")
-        return
+    def update_encode_results(self, encoded_image_path):
+        self.results_label.configure(text="Encoded and saved to: " + encoded_image_path)
+        self.progress.pack_forget()  # Hide the progress bar
 
-    # Generate the encoded image filename
-    filename = os.path.basename(image_path) + "_encoded.png"
+    def encode_message(self, image_path, message, target_save_path, filename):
+        # Read the original image
+        original_image = cv2.imread(image_path)
 
-    # Encode the message into the image using pixel modification
-    encode_message(image_path, message, target_save_path, filename)
+        # Convert the message to binary, and append the end-of-message marker
+        end_marker = "\x00\x00\x00"  # Three null bytes to signify the end of the message
+        binary_message = ''.join(format(ord(char), '08b') for char in message) + ''.join(format(ord(char), '08b') for char in end_marker)
 
-    # Display a success message
-    results_label.configure(text="Encoded and saved to:")
-    results_label.configure(
-        text=results_label["text"] + " " + os.path.join(target_save_path, filename)
-    )
+        # Check if the image can store the binary message
+        if len(binary_message) > original_image.size:
+            messagebox.showerror("Error", "The message is too long for the selected image.")
+            return
 
+        # Flatten the image array and embed the binary message
+        flat_image = original_image.flatten()
+        for i in range(len(binary_message)):
+            flat_image[i] = (flat_image[i] & 0xFE) | int(binary_message[i])
 
-def encode_message(image_path, message, target_save_path, filename):
-    # Open the image using OpenCV
-    original_image = cv2.imread(image_path)
+        # Reshape the array back to the original image shape
+        encoded_image = flat_image.reshape(original_image.shape)
 
-    # Convert the message to a binary string
-    binary_message = "".join(format(ord(char), "08b") for char in message)
+        # Save the encoded image
+        encoded_image_path = os.path.join(target_save_path, filename)
+        cv2.imwrite(encoded_image_path, encoded_image)
 
-    # Flatten the image
-    flat_image = original_image.flatten()
+    def load_decode(self):
+        threading.Thread(target=self._load_decode).start()
 
-    # Embed the message into the image pixels
-    for i in range(len(binary_message)):
-        flat_image[i] = (flat_image[i] & 0xFE) | int(binary_message[i])
+    def _load_decode(self):
+        self.progress.start()
+        encoded_image_path = filedialog.askopenfilename()
+        if encoded_image_path:
+            hidden_message, decoded_image = self.decode_message(encoded_image_path)
+            # Schedule UI updates in the main thread
+            self.root.after(0, self.update_decode_results, hidden_message)
+        self.progress.stop()
 
-    # Reshape the flat image back to its original shape
-    encoded_image = flat_image.reshape(original_image.shape)
+    def update_decode_results(self, hidden_message):
+        self.update_results(hidden_message)
+        self.progress.pack_forget()  # Hide the progress bar
 
-    # Save the encoded image to the specified path
-    encoded_image_path = os.path.join(target_save_path, filename)
-    cv2.imwrite(encoded_image_path, encoded_image)
+    def decode_message(self, encoded_image_path):
+        encoded_image = cv2.imread(encoded_image_path)
+        flat_encoded_image = encoded_image.flatten()
 
+        binary_message = "".join(str(pixel & 1) for pixel in flat_encoded_image)
+        hidden_message = ""
+        end_marker = "00000000" * 3  # Assuming end-of-message is marked by three consecutive null bytes
 
-def load_decode():
-    global decoded_image_label, original_image_tk
-    # Get the encoded image path
-    encoded_image_path = filedialog.askopenfilename()
+        for i in range(0, len(binary_message), 8):
+            byte = binary_message[i:i+8]
+            if binary_message[i:i+24] == end_marker:  # Check for end marker
+                break
+            hidden_message += chr(int(byte, 2))
 
-    # Decode the message from the encoded image
-    hidden_message, decoded_image = decode_message(encoded_image_path)
-
-    # Display the decoded message
-    update_results(hidden_message)
-
-    # Convert the NumPy array to a PIL Image
-    decoded_image_pil = Image.fromarray(decoded_image)
-
-    # Resize the decoded image while maintaining the aspect ratio to fit the GUI window
-    max_size = (300, 300)
-    decoded_image_pil.thumbnail(max_size, Image.ANTIALIAS)
-
-    # Convert the decoded image to an ImageTk object
-    decoded_image_tk = ImageTk.PhotoImage(decoded_image_pil)
-
-    # Display the decoded image
-    image_label.configure(image=decoded_image_tk)
-    image_label.image = decoded_image_tk
-
-    # Clear the message entry
-    message_entry.delete(0, tk.END)
-
-
-def decode_message(encoded_image_path):
-    # Open the encoded image using OpenCV
-    encoded_image = cv2.imread(encoded_image_path)
-
-    # Flatten the encoded image
-    flat_encoded_image = encoded_image.flatten()
-
-    # Extract the LSBs to retrieve the binary message
-    binary_message = "".join(str(pixel & 1) for pixel in flat_encoded_image)
-
-    # Convert the binary message to ASCII
-    hidden_message = "".join(
-        chr(int(binary_message[i : i + 8], 2)) for i in range(0, len(binary_message), 8)
-    )
-
-    # Reshape the flat image back to its original shape
-    decoded_image = flat_encoded_image.reshape(encoded_image.shape)
-
-    return hidden_message, decoded_image
+        return hidden_message, encoded_image
 
 
-def update_results(hidden_message):
-    # Update the decoded message label with the decoded message
-    decoded_message_label.configure(text="Decoded Message:")
-    decoded_message_label.configure(
-        text=decoded_message_label["text"] + "\n" + hidden_message
-    )
+    def update_results(self, hidden_message):
+        self.decoded_message_label.configure(text="Decoded Message:\n" + hidden_message)
 
-
-# Create the main window and its components
-window = tk.Tk()
-window.title("picoSteg")
-
-image_label = tk.Label(window)
-image_label.pack()
-
-load_image_button = tk.Button(window, text="Browse for an image", command=load_image)
-load_image_button.pack()
-
-message_label = tk.Label(window, text="Message:")
-message_label.pack()
-
-message_entry = tk.Entry(window, width=40)
-message_entry.pack()
-
-encode_message_button = tk.Button(window, text="Save", command=encode_and_save_message)
-encode_message_button.pack()
-
-decode_message_button = tk.Button(window, text="Load for decode", command=load_decode)
-decode_message_button.pack()
-
-decoded_message_label = tk.Label(window, text="", wraplength=300)
-decoded_message_label.pack()
-
-results_label = tk.Label(window, text="", wraplength=300)
-results_label.pack()
-
-# Create a label to display the decoded image
-decoded_image_label = tk.Label(window)
-decoded_image_label.pack()
-
-# Start the main event loop
-window.mainloop()
+# Main execution
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = PicoStegApp(root)
+    root.mainloop()
