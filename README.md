@@ -2,7 +2,7 @@
 
 A simple steganography tool to encode and decode messages within images using Python's Tkinter and OpenCV.
 
-## 🚀 Features
+## Features 🚀
 
 - **Load Images**: Browse and load the image you want to use.
 - **Encode Messages**: Hide messages within the image.
