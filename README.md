@@ -26,7 +26,7 @@ pip install -r requirements.txt
 ```
 
 ## 📝 Usage 
-- **Start** the App: Run the script to open the application.
+- **Start the App**: Run the script to open the application.
 - **Load an Image**: Click 'Browse for an image' to load the image you want to work with.
 - **Encode/Decode**: Enter your message and choose to encode or decode.
 
