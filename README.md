@@ -1,7 +1,7 @@
 # 🖼️ PicoStegApp
 ![Python](https://img.shields.io/badge/Python-3776AB?style=flat&logo=python&logoColor=white) [![Stars](https://img.shields.io/github/stars/bugsommelier/picoSteg.svg?style=flat)](https://github.com/bugsommelier/picoSteg/stargazers) [![Size](https://img.shields.io/github/repo-size/bugsommelier/RapidUnlike)](https://github.com/bugsommelier/picoSteg) [![License: Unlicense](https://img.shields.io/badge/license-Unlicense-blue.svg)](https://unlicense.org) [![IsMaintained](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/bugsommelier/uForecast/activity)
 
-A steganography tool to encode and decode messages within images using Python's Tkinter and OpenCV.
+A steganography tool to encode and decode messages within images.
 
 ## 🚀 Features
 
@@ -15,6 +15,9 @@ A steganography tool to encode and decode messages within images using Python's 
 2. Install the dependencies from requirements.txt.
 Run the script:
 ```bash
+https://github.com/bugsommelier/picoSteg.git
+```
+```bash
 python picoSteg.py
 ```
 To use picoSteg, you must install the required Python libraries listed in `requirements.txt`.
@@ -23,10 +26,10 @@ pip install -r requirements.txt
 ```
 
 ## 📝 Usage 
-Start the App: Run the script to open the application.
-Load an Image: Click 'Browse for an image' to load the image you want to work with.
-Encode/Decode: Enter your message and choose to encode or decode.
-Enjoy hiding and discovering messages!
+- **Start** the App: Run the script to open the application.
+- **Load an Image**: Click 'Browse for an image' to load the image you want to work with.
+- **Encode/Decode**: Enter your message and choose to encode or decode.
+
 
 ## 🤝 Contributing
 Contributions, issues, and feature requests are welcome!
